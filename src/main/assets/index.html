@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ระบบสุ่มแต้ม Win</title>
+<style>
+:root{--bg:#f3f6f1;--card:#fff;--ink:#17201a;--mute:#66736a;--win:#1f8a4c;--lose:#c0392b;--line:#d9e0d6;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121813;--card:#1b231d;--ink:#eef3ee;--mute:#93a198;--win:#4cc27d;--lose:#ef6b5c;--line:#2c382f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans Thai","Sarabun",system-ui,sans-serif;display:flex;justify-content:center}
+main{width:100%;max-width:440px;padding:24px 18px}
+h1{font-size:20px;margin:0 0 18px}
+.reel{position:relative;overflow:hidden;background:var(--card);border:1px solid var(--line);border-radius:14px;height:200px}
+.track{display:flex;align-items:center;height:100%;will-change:transform}
+.it{flex:0 0 124px;margin:0 6px;height:140px;display:flex;align-items:center;justify-content:center;border:2px solid var(--line);border-radius:16px;font-size:44px;font-weight:700;font-variant-numeric:tabular-nums;background:var(--bg)}
+.it.p{background:var(--win);border-color:var(--win);color:#fff}
+.it.m{background:var(--lose);border-color:var(--lose);color:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .it.p,:root:not([data-theme="light"]) .it.m{color:#0b130d}}
+.it.hit{border-color:var(--ink);box-shadow:0 0 0 3px var(--ink)}
+.mark{position:absolute;left:50%;top:0;bottom:0;width:3px;margin-left:-1.5px;background:var(--ink);opacity:.85;pointer-events:none}
+.row{display:flex;gap:12px;margin:16px 0}
+button{flex:1;padding:16px;font:inherit;font-size:17px;font-weight:700;border:0;border-radius:12px;color:#fff;cursor:pointer}
+button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+button:disabled{opacity:.6;cursor:default}
+.small{background:transparent;color:var(--mute);border:1px solid var(--line);font-size:14px;padding:10px}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;justify-content:space-between;padding:10px 4px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.p{color:var(--win)}.m{color:var(--lose)}
+#log{display:flex;flex-wrap:wrap;gap:4px 18px}
+#log li{display:block;border:0;padding:4px 2px;font-size:32px;font-weight:700;line-height:1.2}
+</style>
+</head>
+<body>
+<main>
+<h1>ระบบสุ่มแต้ม Win</h1>
+<div class="reel" id="reel"><div class="track" id="track"></div><div class="mark"></div></div>
+<div class="row"><button id="spin" style="background:var(--ink);color:var(--bg);font-size:30px;padding:36px">🎲 สุ่ม</button></div>
+<div class="row"><button class="small" id="reset">รีเซ็ต</button></div>
+</main>
+<script>
+var $=function(i){return document.getElementById(i)};
+var tiers=[[1,20],[2,5],[3,4],[4,3],[5,15],[10,11],[-1,9],[-2,7],[-3,6],[-4,6],[-5,8],[-10,6]].map(function(a){return {p:a[1],lo:a[0],hi:a[0]}});
+function roll(){
+  var tot=tiers.reduce(function(s,x){return s+x.p},0),r=Math.random()*tot,acc=0,t=tiers[tiers.length-1];
+  for(var i=0;i<tiers.length;i++){acc+=tiers[i].p;if(r<acc){t=tiers[i];break}}
+  return t.lo+Math.floor(Math.random()*(t.hi-t.lo+1));
+}
+var log=[],busy=false,last=null,IW=136,W=36,N=60,PRE=4,seq=[1,-1,2,-2,3,-3,4,-4,5,-5,10,-10];
+var track=$("track"),reel=$("reel");
+function fmt(v){return (v>0?"+":"")+v}
+function mk(v){return '<div class="it '+(v>0?'p':'m')+'">'+fmt(v)+'</div>'}
+function pick(prev){var x;do{x=seq[Math.floor(Math.random()*seq.length)]}while(x===prev);return x}
+var POS=seq.filter(function(x){return x>0}),NEG=seq.filter(function(x){return x<0});
+function any(a){return a[Math.floor(Math.random()*a.length)]}
+function build(first,target){
+  if(target!==undefined)W=((first>0)===(target>0))?36:37;
+  var a=[],s=first>0?1:-1,i,g;
+  for(i=0;i<PRE;i++){g=((PRE-i)%2===0)?s:-s;a.push(any(g>0?POS:NEG))}
+  a.push(first);
+  for(i=1;i<N;i++){g=(i%2===0)?s:-s;a.push(any(g>0?POS:NEG))}
+  if(target!==undefined)a[PRE+W]=target;
+  track.innerHTML=a.map(mk).join("");
+}
+function setX(x,anim,dur){
+  track.style.transition=anim?"transform "+(dur||5)+"s cubic-bezier(.12,.75,.15,1)":"none";
+  track.style.transform="translateX("+x+"px)";
+}
+function startX(){return reel.clientWidth/2-(PRE*IW+IW/2)}
+function idle(){build(seq[0]);setX(startX(),false)}
+function render(){}
+function spin(){
+  if(busy)return;
+  busy=true;$("spin").disabled=true;
+  var v=roll();
+  build(last===null?seq[0]:last,v);
+  setX(startX(),false);
+  void track.offsetWidth;
+  var jitter=Math.floor(Math.random()*40)-20;
+  var dur=3;
+  setX(reel.clientWidth/2-((PRE+W)*IW+IW/2)+jitter,true,dur);
+  var done=false;
+  function finish(){
+    if(done)return;done=true;
+    track.children[PRE+W].classList.add("hit");
+    last=v;log.unshift(v);if(log.length>20)log.pop();render();
+    busy=false;$("spin").disabled=false;
+  }
+  track.addEventListener("transitionend",function h(e){
+    if(e.target!==track)return;
+    track.removeEventListener("transitionend",h);finish();
+  });
+  setTimeout(finish,dur*1000+500);
+}
+$("spin").onclick=spin;
+$("reset").onclick=function(){if(busy)return;log=[];last=null;render();idle()};
+idle();
+</script>
+</body>
+</html>
